@@ -1,5 +1,3 @@
-import fs from 'fs'
-import path from 'path'
 import type { Booking } from '@/types/booking'
 
 // ─── Storage strategy ────────────────────────────────────────────────────────
@@ -27,19 +25,15 @@ const REDIS_TOKEN =
 const USE_REDIS = !!(REDIS_URL && REDIS_TOKEN)
 const REDIS_KEY = 'rrm:bookings'
 
-// ─── File-system fallback (local dev) ───────────────────────────────────────
-const DATA_DIR = path.join(process.cwd(), 'data')
-const BOOKINGS_FILE = path.join(DATA_DIR, 'bookings.json')
-
-function ensureDataDir(): void {
+// ─── File-system fallback (local dev only — not available on Cloudflare Workers) ──
+async function readFromFile(): Promise<Booking[]> {
   try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  } catch { /* ignore */ }
-}
-
-function readFromFile(): Booking[] {
-  try {
-    ensureDataDir()
+    const [{ default: fs }, { default: path }] = await Promise.all([
+      import('fs'),
+      import('path'),
+    ])
+    const DATA_DIR = path.join(process.cwd(), 'data')
+    const BOOKINGS_FILE = path.join(DATA_DIR, 'bookings.json')
     if (!fs.existsSync(BOOKINGS_FILE)) return []
     return JSON.parse(fs.readFileSync(BOOKINGS_FILE, 'utf-8')) as Booking[]
   } catch {
@@ -47,9 +41,15 @@ function readFromFile(): Booking[] {
   }
 }
 
-function writeToFile(bookings: Booking[]): void {
+async function writeToFile(bookings: Booking[]): Promise<void> {
   try {
-    ensureDataDir()
+    const [{ default: fs }, { default: path }] = await Promise.all([
+      import('fs'),
+      import('path'),
+    ])
+    const DATA_DIR = path.join(process.cwd(), 'data')
+    const BOOKINGS_FILE = path.join(DATA_DIR, 'bookings.json')
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
     fs.writeFileSync(BOOKINGS_FILE, JSON.stringify(bookings, null, 2), 'utf-8')
   } catch { /* ignore */ }
 }
@@ -106,7 +106,7 @@ async function writeBookings(bookings: Booking[]): Promise<void> {
   if (USE_REDIS) {
     await writeToRedis(bookings)
   } else {
-    writeToFile(bookings)
+    await writeToFile(bookings)
   }
 }
 

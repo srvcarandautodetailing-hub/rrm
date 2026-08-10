@@ -57,3 +57,7 @@ rrmnextjs-backup.git/
 
 # Claude Code local session data
 .claude/
+
+# Cloudflare build output
+.vercel/
+*.zip
